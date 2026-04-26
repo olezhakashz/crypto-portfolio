@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 
 import { useSettingsStore, type Currency, type RefreshInterval } from '../store/settingsStore';
 import { showTestNow } from '../services/notifications';
+import { IS_EXPO_GO } from '../utils/env';
 import { theme } from '../theme/theme';
 import { Button, Card, Screen, Subtle, Title } from '../components/ui';
 
@@ -141,7 +141,7 @@ export default function SettingsScreen() {
         {isLoading ? <Text style={styles.help}>Applying…</Text> : null}
       </Card>
 
-      {__DEV__ ? (
+      {__DEV__ && !IS_EXPO_GO ? (
         <View style={{ marginTop: theme.space.md, gap: theme.space.sm }}>
           <Button
             title="Test notification (1s)"
@@ -153,8 +153,10 @@ export default function SettingsScreen() {
             title="Debug permissions + scheduled (logs)"
             variant="ghost"
             onPress={async () => {
-              const p = await Notifications.getPermissionsAsync();
-              const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+              // eslint-disable-next-line @typescript-eslint/no-require-imports
+              const N = require('expo-notifications') as typeof import('expo-notifications');
+              const p = await N.getPermissionsAsync();
+              const scheduled = await N.getAllScheduledNotificationsAsync();
               console.log('PERMS:', p);
               console.log('SCHEDULED:', scheduled);
             }}

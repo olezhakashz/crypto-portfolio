@@ -9,7 +9,6 @@ export default function GlassTabBar({ state, descriptors, navigation }: BottomTa
 
   return (
     <View
-      pointerEvents="box-none"
       style={[
         styles.wrap,
         {
@@ -44,7 +43,6 @@ const styles = StyleSheet.create({
     right: 16,
     bottom: 10,
   },
-
   bar: {
     flexDirection: 'row',
     backgroundColor: theme.color.surface,

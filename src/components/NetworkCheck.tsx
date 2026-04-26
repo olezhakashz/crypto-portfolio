@@ -17,7 +17,7 @@ export default function NetworkCheck() {
   if (isConnected !== false) return null;
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} pointerEvents="none">
       <Text style={styles.text}>No internet connection. Showing cached data.</Text>
     </View>
   );

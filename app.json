@@ -36,6 +36,9 @@
         "projectId": "d746145e-653e-4e27-9751-4178da14314b"
       }
     },
-    "owner": "okezhakash"
+    "owner": "okezhakash",
+    "install": {
+      "exclude": ["react-native-gesture-handler"]
+    }
   }
 }
