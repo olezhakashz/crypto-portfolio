@@ -4,6 +4,8 @@ import RootNavigator from './src/navigation/RootNavigator';
 import { useSettingsStore } from './src/store/settingsStore';
 import * as Notifications from 'expo-notifications';
 import { ToastProvider } from './src/components/Toast';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import NetworkCheck from './src/components/NetworkCheck';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -20,10 +22,13 @@ export default function App() {
   }, []);
 
   return (
-    <ToastProvider>
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
-    </ToastProvider>
+    <ErrorBoundary>
+      <NetworkCheck />
+      <ToastProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </ToastProvider>
+    </ErrorBoundary>
   );
 }

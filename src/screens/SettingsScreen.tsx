@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.surface2,
-    borderRadius: theme.radius.md,
+    borderRadius: theme.radius.lg,
     overflow: 'hidden',
   },
   segCell: { flex: 1, paddingVertical: 10, alignItems: 'center' },
