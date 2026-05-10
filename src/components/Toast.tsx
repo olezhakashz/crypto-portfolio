@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 12,
     right: 12,
-    bottom: 18,
+    bottom: 90,
     alignItems: 'center',
   },
   toast: {

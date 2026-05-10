@@ -1,28 +1,59 @@
 export const theme = {
   color: {
-    bg: '#070A14',
-    surface: 'rgba(255,255,255,0.08)',
-    surface2: 'rgba(255,255,255,0.06)',
-    border: 'rgba(255,255,255,0.12)',
+    // Backgrounds
+    bg: '#060810',
+    surface: 'rgba(255,255,255,0.055)',
+    surface2: 'rgba(255,255,255,0.035)',
+    surfaceHover: 'rgba(255,255,255,0.08)',
 
-    text: 'rgba(255,255,255,0.92)',
-    text2: 'rgba(255,255,255,0.70)',
-    text3: 'rgba(255,255,255,0.55)',
+    // Borders
+    border: 'rgba(255,255,255,0.09)',
+    borderStrong: 'rgba(255,255,255,0.16)',
 
-    primary: '#8B5CF6',
-    onPrimary: '#0B0B12',
+    // Text
+    text: 'rgba(255,255,255,0.95)',
+    text2: 'rgba(255,255,255,0.60)',
+    text3: 'rgba(255,255,255,0.38)',
 
-    danger: '#F97316',
-    onDanger: '#0B0B12',
+    // Primary — violet
+    primary: '#7C3AED',
+    primaryLight: '#A78BFA',
+    primaryGlow: 'rgba(124,58,237,0.35)',
+    onPrimary: '#ffffff',
 
-    // ✅ ДОБАВИТЬ
-    success: '#22C55E',
-    onSuccess: '#0B0B12',
-    accent: '#8B5CF6', // можно = primary, но лучше явно
-    black: '#0B0B12', // чтобы labelActive не падал
+    // Gain — teal/emerald
+    success: '#10B981',
+    successGlow: 'rgba(16,185,129,0.30)',
+    onSuccess: '#ffffff',
+
+    // Loss — rose
+    danger: '#F43F5E',
+    dangerGlow: 'rgba(244,63,94,0.30)',
+    onDanger: '#ffffff',
+
+    // Accent (= primary alias)
+    accent: '#7C3AED',
+    accentSoft: 'rgba(124,58,237,0.18)',
+
+    // Gold for rank badges
+    gold: '#F59E0B',
+    goldSoft: 'rgba(245,158,11,0.15)',
+
+    // Misc
+    black: '#060810',
+    white: '#ffffff',
   },
 
-  space: { sm: 8, md: 12, lg: 16, xl: 24 },
+  space: { xs: 4, sm: 8, md: 14, lg: 20, xl: 28, xxl: 40 },
 
-  radius: { lg: 14, xl: 18 },
+  radius: { sm: 10, md: 14, lg: 18, xl: 24, full: 999 },
+
+  font: {
+    xs: 11,
+    sm: 13,
+    md: 15,
+    lg: 18,
+    xl: 24,
+    xxl: 32,
+  },
 } as const;

@@ -6,14 +6,11 @@ import * as Haptics from 'expo-haptics';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { useMarketStore } from '../store/marketStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { Screen, Card, Title, Subtle, Pill } from '../components/ui';
+import { Screen, Card, Title, Subtle, ChangePill } from '../components/ui';
 import { theme } from '../theme/theme';
+import { formatMoney, formatBigNumber } from '../utils/formatters';
 
 const REFRESH_INTERVAL_MS = 30_000;
-
-function formatMoney(sign: string, v: number) {
-  return `${sign}${v.toFixed(2)}`;
-}
 
 export default function PortfolioScreen() {
   const currency = useSettingsStore((s) => s.currency);
@@ -51,89 +48,110 @@ export default function PortfolioScreen() {
     return m;
   }, [marketCoins]);
 
+  const changeMap = useMemo(() => {
+    const m = new Map<string, number | null>();
+    for (const c of marketCoins) m.set(c.id, c.price_change_percentage_24h);
+    return m;
+  }, [marketCoins]);
+
   const rows = useMemo(() => {
     return items.map((it) => {
       const price = priceMap.get(it.coinId) ?? null;
       const total = price === null ? null : price * it.amount;
-      return { ...it, price, total };
+      const change = changeMap.get(it.coinId) ?? null;
+      return { ...it, price, total, change };
     });
-  }, [items, priceMap]);
+  }, [items, priceMap, changeMap]);
 
   const portfolioTotal = useMemo(() => {
     return rows.reduce((sum, r) => (r.total === null ? sum : sum + r.total), 0);
   }, [rows]);
 
-  const updatedText = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
   const loading = portfolioLoading || (marketLoading && rows.length === 0);
+  const updatedText = lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : '—';
 
   return (
     <Screen>
-      {/* Header (низко и по центру, safe-area уже учтён) */}
-      <View style={styles.header}>
-        <Title style={styles.headerTitle}>Portfolio</Title>
-        <Pill label="Total" value={formatMoney(sign, portfolioTotal)} />
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <Title>Portfolio</Title>
+        <Subtle>{updatedText} • {currency}</Subtle>
       </View>
+
+      {/* Total Value Hero */}
+      <Card glow={portfolioTotal > 0 ? 'primary' : undefined} style={styles.heroCard}>
+        <Text style={styles.heroLabel}>TOTAL VALUE</Text>
+        <Text style={styles.heroValue}>{formatBigNumber(portfolioTotal, sign)}</Text>
+        <Text style={styles.heroSub}>
+          {items.length} asset{items.length !== 1 ? 's' : ''} • auto-refreshes every {REFRESH_INTERVAL_MS / 1000}s
+        </Text>
+      </Card>
 
       {/* Error */}
       {portfolioError ? (
         <Card style={styles.errorCard}>
-          <Text style={styles.errorText}>{portfolioError}</Text>
+          <Text style={styles.errorText}>⚠️ {portfolioError}</Text>
         </Card>
       ) : null}
 
+      {/* List */}
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={theme.color.primaryLight} size="large" />
         </View>
       ) : (
         <FlatList
           contentContainerStyle={[styles.listContent, rows.length === 0 ? styles.emptyGrow : null]}
           data={rows}
           keyExtractor={(item) => item.coinId}
+          showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
-            const totalText = item.total === null ? '—' : formatMoney(sign, item.total);
-            const priceText = item.price === null ? '—' : formatMoney(sign, item.price);
+            const totalText = item.total === null ? '—' : formatMoney(item.total, sign);
+            const priceText = item.price === null ? '—' : formatMoney(item.price, sign);
 
             return (
-              <Card style={styles.card}>
-                <Pressable
-                  onLongPress={async () => {
-                    await remove(item.coinId);
-                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  }}
-                >
+              <Pressable
+                onLongPress={async () => {
+                  await remove(item.coinId);
+                  await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                }}
+                style={({ pressed }) => [styles.rowPressable, pressed && styles.rowPressed]}
+              >
+                <Card style={styles.card}>
                   <View style={styles.cardTop}>
+                    {/* Coin avatar letter */}
+                    <View style={styles.avatar}>
+                      <Text style={styles.avatarText}>{item.symbol[0]?.toUpperCase()}</Text>
+                    </View>
+
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name}>{item.name}</Text>
                       <Text style={styles.meta}>
-                        {item.symbol.toUpperCase()} • Amount: {item.amount}
+                        {item.symbol.toUpperCase()} · {item.amount} coins · {priceText} each
                       </Text>
-                      <Text style={styles.meta}>Price: {priceText}</Text>
                     </View>
 
                     <View style={styles.rightCol}>
                       <Text style={styles.valueStrong}>{totalText}</Text>
-                      <Text style={styles.hint}>Long press</Text>
+                      <View style={{ marginTop: 6 }}>
+                        <ChangePill value={item.change} />
+                      </View>
                     </View>
                   </View>
-                </Pressable>
-              </Card>
+
+                  <Text style={styles.hint}>Long-press to remove</Text>
+                </Card>
+              </Pressable>
             );
           }}
           ListEmptyComponent={
-            <Card style={styles.empty}>
+            <Card style={styles.emptyCard}>
+              <Text style={styles.emptyEmoji}>💎</Text>
               <Text style={styles.emptyTitle}>No coins yet</Text>
               <Text style={styles.emptySub}>
                 Open Market → select a coin → add it to your portfolio.
               </Text>
             </Card>
-          }
-          ListFooterComponent={
-            <View style={styles.footerMeta}>
-              <Subtle style={{ marginTop: 0 }}>
-                Updated: {updatedText} • Auto: {REFRESH_INTERVAL_MS / 1000}s • Currency: {currency}
-              </Subtle>
-            </View>
           }
         />
       )}
@@ -142,37 +160,83 @@ export default function PortfolioScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
+  headerRow: {
+    marginBottom: theme.space.lg,
   },
-  headerTitle: { textAlign: 'center', flex: 1 },
+
+  heroCard: {
+    marginBottom: theme.space.lg,
+    paddingVertical: theme.space.xl,
+    alignItems: 'center',
+  },
+  heroLabel: {
+    color: theme.color.text3,
+    fontSize: theme.font.xs,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  heroValue: {
+    color: theme.color.text,
+    fontSize: 40,
+    fontWeight: '900',
+    letterSpacing: -1,
+    marginTop: 8,
+  },
+  heroSub: {
+    marginTop: 8,
+    color: theme.color.text3,
+    fontSize: theme.font.xs,
+    fontWeight: '600',
+  },
+
+  errorCard: { borderColor: 'rgba(244,63,94,0.3)', marginBottom: theme.space.md },
+  errorText: { color: theme.color.danger, fontWeight: '800' },
 
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  listContent: { paddingBottom: 12 },
+  listContent: { paddingBottom: 100 },
   emptyGrow: { flexGrow: 1, justifyContent: 'center' },
 
-  card: { marginBottom: 12 },
+  rowPressable: {},
+  rowPressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
 
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  card: { marginBottom: 10 },
 
-  name: { color: theme.color.text, fontSize: 16, fontWeight: '900' },
-  meta: { color: theme.color.text2, marginTop: 6, fontWeight: '700' },
+  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.radius.full,
+    backgroundColor: theme.color.accentSoft,
+    borderWidth: 1,
+    borderColor: theme.color.primaryGlow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    color: theme.color.primaryLight,
+    fontWeight: '900',
+    fontSize: theme.font.lg,
+  },
+
+  name: { color: theme.color.text, fontSize: theme.font.md, fontWeight: '800' },
+  meta: { color: theme.color.text3, marginTop: 4, fontWeight: '600', fontSize: theme.font.xs },
 
   rightCol: { alignItems: 'flex-end' },
-  valueStrong: { color: theme.color.text, fontSize: 16, fontWeight: '900' },
-  hint: { marginTop: 6, color: theme.color.text3, fontWeight: '800' },
+  valueStrong: { color: theme.color.text, fontSize: theme.font.md, fontWeight: '900' },
 
-  empty: { alignItems: 'center' },
-  emptyTitle: { color: theme.color.text, fontSize: 18, fontWeight: '900' },
-  emptySub: { marginTop: 8, color: theme.color.text2, textAlign: 'center', fontWeight: '700' },
+  hint: {
+    marginTop: theme.space.sm,
+    color: theme.color.text3,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
 
-  footerMeta: { marginTop: 8, paddingBottom: 8 },
-
-  errorCard: { borderColor: 'rgba(255,0,0,0.25)' },
-  errorText: { color: theme.color.text, fontWeight: '900' },
+  emptyCard: { alignItems: 'center', paddingVertical: theme.space.xl },
+  emptyEmoji: { fontSize: 48, marginBottom: theme.space.md },
+  emptyTitle: { color: theme.color.text, fontSize: theme.font.xl, fontWeight: '900' },
+  emptySub: { marginTop: 8, color: theme.color.text2, textAlign: 'center', fontWeight: '600', fontSize: theme.font.sm },
 });

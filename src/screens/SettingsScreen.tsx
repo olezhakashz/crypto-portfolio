@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet, Switch } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useSettingsStore, type Currency, type RefreshInterval } from '../store/settingsStore';
 import { showTestNow } from '../services/notifications';
 import { IS_EXPO_GO } from '../utils/env';
 import { theme } from '../theme/theme';
-import { Button, Card, Screen, Subtle, Title } from '../components/ui';
+import { Button, Card, Screen, SectionLabel, Divider } from '../components/ui';
 
 const intervals: { label: string; value: RefreshInterval }[] = [
   { label: '15s', value: 15_000 },
@@ -16,7 +16,7 @@ const intervals: { label: string; value: RefreshInterval }[] = [
 
 const currencies: Currency[] = ['USD', 'EUR'];
 
-function SegmentedRow<T extends string | number>({
+function SegmentRow<T extends string | number>({
   title,
   subtitle,
   options,
@@ -30,9 +30,9 @@ function SegmentedRow<T extends string | number>({
   onChange: (v: T) => Promise<void>;
 }) {
   return (
-    <Card style={{ padding: theme.space.md }}>
-      <Text style={styles.cardTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.help}>{subtitle}</Text> : null}
+    <Card style={styles.settingCard}>
+      <Text style={styles.settingTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.settingHelp}>{subtitle}</Text> : null}
 
       <View style={styles.segment}>
         {options.map((opt) => {
@@ -73,109 +73,168 @@ export default function SettingsScreen() {
     return intervals.find((x) => x.value === refreshIntervalMs)?.label ?? `${refreshIntervalMs}ms`;
   }, [refreshIntervalMs]);
 
-  const timeLabel = `${String(reminderHour).padStart(2, '0')}:${String(reminderMinute).padStart(
-    2,
-    '0',
-  )}`;
+  const timeLabel = `${String(reminderHour).padStart(2, '0')}:${String(reminderMinute).padStart(2, '0')}`;
 
   return (
-    <Screen style={{ paddingTop: theme.space.xl }}>
-      <View style={{ marginBottom: theme.space.lg }}>
-        <Title>Settings</Title>
-        <Subtle>Personalize currency, refresh and reminders.</Subtle>
-      </View>
+    <Screen>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={styles.headerSub}>Personalize your experience</Text>
+        </View>
 
-      {error ? (
-        <Card style={styles.errorBox}>
-          <Text style={styles.errorTitle}>Something went wrong</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <View style={{ marginTop: theme.space.md }}>
-            <Button title="Dismiss" variant="ghost" onPress={clearError} />
+        {/* Error banner */}
+        {error ? (
+          <Card style={styles.errorCard}>
+            <Text style={styles.errorTitle}>⚠️ Something went wrong</Text>
+            <Text style={styles.errorText}>{error}</Text>
+            <View style={{ marginTop: theme.space.md }}>
+              <Button title="Dismiss" variant="ghost" onPress={clearError} />
+            </View>
+          </Card>
+        ) : null}
+
+        {/* Currency */}
+        <SectionLabel>Currency</SectionLabel>
+        <SegmentRow
+          title="Display Currency"
+          subtitle={`Currently showing prices in ${currency}`}
+          options={currencies.map((c) => ({ label: c, value: c }))}
+          value={currency}
+          onChange={async (c) => {
+            await setCurrency(c);
+            await Haptics.selectionAsync();
+          }}
+        />
+
+        <Divider />
+
+        {/* Refresh */}
+        <SectionLabel>Data Refresh</SectionLabel>
+        <SegmentRow
+          title="Auto-refresh Interval"
+          subtitle={`Market & Portfolio refresh every ${intervalLabel}`}
+          options={intervals.map((it) => ({ label: it.label, value: it.value }))}
+          value={refreshIntervalMs}
+          onChange={async (ms) => {
+            await setRefreshInterval(ms);
+            await Haptics.selectionAsync();
+          }}
+        />
+
+        <Divider />
+
+        {/* Notifications */}
+        <SectionLabel>Notifications</SectionLabel>
+        <Card style={styles.settingCard}>
+          <View style={styles.switchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.settingTitle}>Daily Reminder</Text>
+              <Text style={styles.settingHelp}>
+                Get notified every day at {timeLabel} to check your portfolio.
+              </Text>
+            </View>
+            <Switch
+              value={dailyReminderEnabled}
+              disabled={isLoading}
+              trackColor={{ false: theme.color.surface2, true: theme.color.primary }}
+              thumbColor={dailyReminderEnabled ? theme.color.white : theme.color.text3}
+              onValueChange={async (v) => {
+                await setDailyReminderEnabled(v);
+                await Haptics.selectionAsync();
+              }}
+            />
           </View>
+          {isLoading ? <Text style={styles.applyingText}>Applying…</Text> : null}
         </Card>
-      ) : null}
 
-      <SegmentedRow
-        title="Currency"
-        subtitle={`Current: ${currency}`}
-        options={currencies.map((c) => ({ label: c, value: c }))}
-        value={currency}
-        onChange={async (c) => {
-          await setCurrency(c);
-          await Haptics.selectionAsync();
-        }}
-      />
+        {/* Dev tools */}
+        {__DEV__ && !IS_EXPO_GO ? (
+          <>
+            <Divider />
+            <SectionLabel>Developer</SectionLabel>
+            <Card style={styles.settingCard}>
+              <Text style={styles.settingTitle}>Debug Tools</Text>
+              <Text style={styles.settingHelp}>Only visible in development builds</Text>
+              <View style={{ marginTop: theme.space.md, gap: theme.space.sm }}>
+                <Button
+                  title="🔔 Send Test Notification (1s)"
+                  onPress={async () => {
+                    await showTestNow();
+                  }}
+                />
+                <Button
+                  title="Log Permissions + Scheduled"
+                  variant="ghost"
+                  onPress={async () => {
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const N = require('expo-notifications') as typeof import('expo-notifications');
+                    const p = await N.getPermissionsAsync();
+                    const scheduled = await N.getAllScheduledNotificationsAsync();
+                    console.log('PERMS:', p);
+                    console.log('SCHEDULED:', scheduled);
+                  }}
+                />
+              </View>
+            </Card>
+          </>
+        ) : null}
 
-      <View style={{ height: theme.space.md }} />
-
-      <SegmentedRow
-        title="Auto refresh"
-        subtitle={`Current: ${intervalLabel} • Controls Market & Portfolio auto refresh`}
-        options={intervals.map((it) => ({ label: it.label, value: it.value }))}
-        value={refreshIntervalMs}
-        onChange={async (ms) => {
-          await setRefreshInterval(ms);
-          await Haptics.selectionAsync();
-        }}
-      />
-
-      <View style={{ height: theme.space.md }} />
-
-      <Card>
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Daily reminder</Text>
-            <Text style={styles.help}>Local notification every day at {timeLabel}.</Text>
-          </View>
-
-          <Switch
-            value={dailyReminderEnabled}
-            disabled={isLoading}
-            onValueChange={async (v) => {
-              await setDailyReminderEnabled(v);
-              await Haptics.selectionAsync();
-            }}
-          />
+        {/* App info */}
+        <Divider />
+        <View style={styles.appInfo}>
+          <Text style={styles.appInfoText}>Crypto Portfolio · v1.0.0</Text>
+          <Text style={styles.appInfoText}>Data by CoinGecko · Prices delayed</Text>
         </View>
-
-        {isLoading ? <Text style={styles.help}>Applying…</Text> : null}
-      </Card>
-
-      {__DEV__ && !IS_EXPO_GO ? (
-        <View style={{ marginTop: theme.space.md, gap: theme.space.sm }}>
-          <Button
-            title="Test notification (1s)"
-            onPress={async () => {
-              await showTestNow();
-            }}
-          />
-          <Button
-            title="Debug permissions + scheduled (logs)"
-            variant="ghost"
-            onPress={async () => {
-              // eslint-disable-next-line @typescript-eslint/no-require-imports
-              const N = require('expo-notifications') as typeof import('expo-notifications');
-              const p = await N.getPermissionsAsync();
-              const scheduled = await N.getAllScheduledNotificationsAsync();
-              console.log('PERMS:', p);
-              console.log('SCHEDULED:', scheduled);
-            }}
-          />
-        </View>
-      ) : null}
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: theme.space.md },
+  scroll: { paddingBottom: 120, gap: 0 },
 
-  cardTitle: {
-    color: theme.color.text,
-    fontSize: 16,
-    fontWeight: '900',
+  header: {
+    marginBottom: theme.space.xl,
   },
-  help: { marginTop: 6, color: theme.color.text2, fontSize: 12, fontWeight: '700' },
+  headerTitle: {
+    color: theme.color.text,
+    fontSize: theme.font.xxl,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  headerSub: {
+    marginTop: 4,
+    color: theme.color.text3,
+    fontSize: theme.font.xs,
+    fontWeight: '600',
+  },
+
+  errorCard: {
+    borderColor: 'rgba(244,63,94,0.35)',
+    backgroundColor: 'rgba(244,63,94,0.08)',
+    marginBottom: theme.space.lg,
+  },
+  errorTitle: { color: theme.color.text, fontWeight: '900', fontSize: theme.font.md },
+  errorText: { color: theme.color.text2, marginTop: 6 },
+
+  settingCard: {
+    marginBottom: theme.space.md,
+  },
+
+  settingTitle: {
+    color: theme.color.text,
+    fontSize: theme.font.md,
+    fontWeight: '800',
+  },
+  settingHelp: {
+    marginTop: 5,
+    color: theme.color.text3,
+    fontSize: theme.font.xs,
+    fontWeight: '600',
+    lineHeight: 16,
+  },
 
   segment: {
     marginTop: theme.space.md,
@@ -183,18 +242,42 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.surface2,
-    borderRadius: theme.radius.lg,
+    borderRadius: theme.radius.md,
     overflow: 'hidden',
+    padding: 3,
+    gap: 3,
   },
-  segCell: { flex: 1, paddingVertical: 10, alignItems: 'center' },
-  segActiveCell: { backgroundColor: theme.color.text },
-  segText: { color: theme.color.text, fontWeight: '900' },
-  segTextActive: { color: theme.color.bg, fontWeight: '900' },
+  segCell: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: theme.radius.sm,
+  },
+  segActiveCell: { backgroundColor: theme.color.primary },
+  segText: { color: theme.color.text3, fontWeight: '700', fontSize: theme.font.sm },
+  segTextActive: { color: theme.color.white, fontWeight: '800' },
 
-  errorBox: {
-    borderColor: 'rgba(251,113,133,0.45)',
-    backgroundColor: 'rgba(251,113,133,0.10)',
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.space.md,
   },
-  errorTitle: { color: theme.color.text, fontWeight: '900', fontSize: 16 },
-  errorText: { color: theme.color.text2, marginTop: 6 },
+  applyingText: {
+    marginTop: theme.space.sm,
+    color: theme.color.text3,
+    fontSize: theme.font.xs,
+    fontWeight: '600',
+  },
+
+  appInfo: {
+    marginTop: theme.space.xl,
+    alignItems: 'center',
+    gap: 4,
+  },
+  appInfoText: {
+    color: theme.color.text3,
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
 });

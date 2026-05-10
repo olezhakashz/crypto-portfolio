@@ -13,16 +13,17 @@ export default function MarketFilters() {
   return (
     <View style={styles.wrap}>
       <TextInput
-        placeholder="Search BTC, ETH..."
+        placeholder="Search coins…"
         placeholderTextColor={theme.color.text3}
         value={query}
         onChangeText={setQuery}
         style={styles.input}
+        returnKeyType="search"
       />
 
       <Segment
-        left="Top"
-        right="Gainers"
+        left="Top 50"
+        right="📈 Gainers"
         value={onlyGainers ? 'right' : 'left'}
         onChange={(v) => setOnlyGainers(v === 'right')}
       />
@@ -31,16 +32,17 @@ export default function MarketFilters() {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: 12 },
+  wrap: { gap: 10 },
 
   input: {
     borderWidth: 1,
     borderColor: theme.color.border,
     backgroundColor: theme.color.surface2,
-    borderRadius: theme.radius.xl,
-    paddingHorizontal: 14,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     color: theme.color.text,
-    fontWeight: '800',
+    fontWeight: '700',
+    fontSize: theme.font.sm,
   },
 });
