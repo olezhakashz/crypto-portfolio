@@ -9,6 +9,7 @@ export type CoinMarketItem = {
   name: string;     // The full human-readable name — e.g. "Bitcoin", "Ethereum"
   image: string;    // URL to the coin's logo image
   current_price: number;        // The current price in the selected currency (USD or EUR)
+  market_cap: number;           // Total market capitalization in the selected currency
   market_cap_rank: number;      // The coin's global rank by market cap (1 = biggest)
   price_change_percentage_24h: number | null; // % price change in the last 24 hours (can be null if unavailable)
 };

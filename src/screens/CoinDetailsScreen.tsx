@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   Text,
-  ActivityIndicator,
   StyleSheet,
   Image,
   TextInput,
@@ -16,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useToast } from '../components/Toast';
 import type { RootStackParamList } from '../navigation/types';
-import { fetchCoinDetails, type CoinDetails } from '../api/coingecko';
+import { useMarketStore } from '../store/marketStore';
 import { usePortfolioStore } from '../store/portfolioStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { theme } from '../theme/theme';
@@ -31,51 +30,16 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
   const { id } = route.params;
 
   const currency = useSettingsStore((s) => s.currency);
-  const vs = currency === 'EUR' ? 'eur' : 'usd';
   const currencySign = currency === 'EUR' ? '€' : '$';
 
   const addOrUpdate = usePortfolioStore((s) => s.addOrUpdate);
   const toast = useToast();
 
-  const [data, setData] = useState<CoinDetails | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Read the coin data directly from the market store — no extra API call needed!
+  // The market list already has everything we need: price, market cap, 24h change, image.
+  const coin = useMarketStore((s) => s.coins.find((c) => c.id === id));
 
   const [amount, setAmount] = useState('1');
-
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const d = await fetchCoinDetails(id);
-      setData(d);
-    } catch {
-      setError('Failed to load details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const d = await fetchCoinDetails(id);
-        if (alive) setData(d);
-      } catch {
-        if (alive) setError('Failed to load details');
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-
-    return () => {
-      alive = false;
-    };
-  }, [id]);
 
   const parsedAmount = useMemo(() => {
     const normalized = amount.replace(',', '.').trim();
@@ -84,7 +48,7 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
   }, [amount]);
 
   const onSavePortfolio = async () => {
-    if (!data) return;
+    if (!coin) return;
 
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
       toast.error('Invalid amount', 'Enter a number > 0 (e.g., 1 or 0.5)');
@@ -92,45 +56,35 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
     }
 
     await addOrUpdate({
-      coinId: data.id,
-      symbol: data.symbol,
-      name: data.name,
+      coinId: coin.id,
+      symbol: coin.symbol,
+      name: coin.name,
       amount: parsedAmount,
     });
 
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    toast.success('Saved', `${data.name} added to portfolio`);
+    toast.success('Saved', `${coin.name} added to portfolio`);
   };
 
-  if (loading) {
-    return (
-      <Screen style={styles.center}>
-        <ActivityIndicator color={theme.color.primaryLight} size="large" />
-        <Text style={styles.loadingText}>Loading coin data…</Text>
-      </Screen>
-    );
-  }
-
-  if (error || !data) {
+  if (!coin) {
     return (
       <Screen style={styles.center}>
         <Card style={styles.errorCard}>
           <Text style={styles.errorEmoji}>⚠️</Text>
-          <Text style={styles.errTitle}>Couldn't load coin</Text>
-          <Text style={styles.errText}>{error ?? 'No data'}</Text>
+          <Text style={styles.errTitle}>Coin not found</Text>
+          <Text style={styles.errText}>Go back to Market and try again.</Text>
 
           <View style={{ marginTop: theme.space.lg, gap: theme.space.sm }}>
-            <Button title="Retry" onPress={() => void load()} />
-            <Button title="Go Back" variant="ghost" onPress={() => navigation.goBack()} />
+            <Button title="Go Back" onPress={() => navigation.goBack()} />
           </View>
         </Card>
       </Screen>
     );
   }
 
-  const price = data.market_data.current_price[vs];
-  const change = data.market_data.price_change_percentage_24h;
-  const cap = data.market_data.market_cap[vs];
+  const price = coin.current_price;
+  const change = coin.price_change_percentage_24h;
+  const cap = coin.market_cap;
 
   const estimatedValue =
     Number.isFinite(parsedAmount) && parsedAmount > 0
@@ -154,10 +108,10 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
         <Card style={styles.hero}>
           {/* Coin identity row */}
           <View style={styles.heroTop}>
-            <Image source={{ uri: data.image.large }} style={styles.logo} />
+            <Image source={{ uri: coin.image }} style={styles.logo} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroName}>{data.name}</Text>
-              <Text style={styles.heroSymbol}>{data.symbol.toUpperCase()} · {currency}</Text>
+              <Text style={styles.heroName}>{coin.name}</Text>
+              <Text style={styles.heroSymbol}>{coin.symbol.toUpperCase()} · {currency}</Text>
             </View>
             <View style={styles.priceBlock}>
               <Text style={styles.priceLabel}>PRICE</Text>
@@ -187,7 +141,7 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
         {/* Add to portfolio card */}
         <Card style={styles.addCard}>
           <Text style={styles.sectionTitle}>Add to Portfolio</Text>
-          <Text style={styles.sectionSub}>Enter how many {data.symbol.toUpperCase()} you hold.</Text>
+          <Text style={styles.sectionSub}>Enter how many {coin.symbol.toUpperCase()} you hold.</Text>
 
           <TextInput
             value={amount}
@@ -207,7 +161,7 @@ export default function CoinDetailsScreen({ route }: { route: Route }) {
           ) : null}
 
           <View style={{ marginTop: theme.space.lg }}>
-            <Button title={`Add ${data.name} to Portfolio`} onPress={() => void onSavePortfolio()} />
+            <Button title={`Add ${coin.name} to Portfolio`} onPress={() => void onSavePortfolio()} />
           </View>
 
           <Subtle style={{ marginTop: theme.space.sm, textAlign: 'center' }}>
@@ -223,8 +177,6 @@ const styles = StyleSheet.create({
   screen: { paddingTop: theme.space.md },
   center: { justifyContent: 'center', alignItems: 'center', gap: 12 },
   scroll: { paddingBottom: 100, gap: theme.space.md },
-
-  loadingText: { color: theme.color.text3, fontSize: theme.font.sm, fontWeight: '600' },
 
   // Back button
   backBtn: {

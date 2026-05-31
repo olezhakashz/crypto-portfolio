@@ -7,7 +7,7 @@ import {
 } from '../services/notifications';
 
 export type Currency = 'USD' | 'EUR';
-export type RefreshInterval = 15_000 | 30_000 | 60_000;
+export type RefreshInterval = 30_000 | 60_000 | 120_000;
 
 type SettingsState = {
   currency: Currency;
@@ -20,6 +20,8 @@ type SettingsState = {
 
   isLoading: boolean;
   error: string | null;
+  /** When true, the error can be resolved by opening system notification settings */
+  needsSettings: boolean;
 
   load: () => Promise<void>;
   setCurrency: (c: Currency) => Promise<void>;
@@ -42,7 +44,7 @@ type Persisted = Pick<
 
 const DEFAULTS: Persisted = {
   currency: 'USD',
-  refreshIntervalMs: 30_000,
+  refreshIntervalMs: 60_000,
   dailyReminderEnabled: false,
   reminderHour: 20,
   reminderMinute: 0,
@@ -58,8 +60,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   isLoading: false,
   error: null,
+  needsSettings: false,
 
-  clearError: () => set({ error: null }),
+  clearError: () => set({ error: null, needsSettings: false }),
 
   load: async () => {
     try {
@@ -140,10 +143,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         return;
       }
 
-      const ok = await ensureNotificationSetup();
-      if (!ok) {
-        set({ dailyReminderEnabled: false, reminderNotificationId: null });
-        set({ error: 'Notification permission denied' });
+      const result = await ensureNotificationSetup();
+      if (result !== 'granted') {
+        const isPermanent = result === 'denied-permanently';
+        set({
+          dailyReminderEnabled: false,
+          reminderNotificationId: null,
+          needsSettings: isPermanent,
+          error: isPermanent
+            ? 'Notifications are blocked. Please enable them in your device settings.'
+            : 'Notification permission denied',
+        });
 
         const next: Persisted = {
           currency: get().currency,

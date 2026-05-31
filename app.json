@@ -37,6 +37,14 @@
       }
     },
     "owner": "okezhakash",
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "sounds": []
+        }
+      ]
+    ],
     "install": {
       "exclude": ["react-native-gesture-handler"]
     }

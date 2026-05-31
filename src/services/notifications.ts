@@ -27,13 +27,26 @@ function getN() {
 }
 
 /**
+ * Result from ensureNotificationSetup:
+ * - 'granted'            → all good, notifications will work
+ * - 'denied'             → user just denied the prompt (can be asked again)
+ * - 'denied-permanently' → user denied AND canAskAgain is false — must open system settings
+ * - 'unavailable'        → running in Expo Go or notifications not supported
+ */
+export type NotificationSetupResult =
+  | 'granted'
+  | 'denied'
+  | 'denied-permanently'
+  | 'unavailable';
+
+/**
  * ensureNotificationSetup: checks (and requests) notification permission.
  * Also creates the Android notification channel if needed.
- * Returns true if permission is granted, false if denied.
+ * Returns a detailed result so the caller can guide the user appropriately.
  */
-export async function ensureNotificationSetup(): Promise<boolean> {
+export async function ensureNotificationSetup(): Promise<NotificationSetupResult> {
   const N = getN();
-  if (!N) return false; // We're in Expo Go — pretend permission was denied
+  if (!N) return 'unavailable'; // We're in Expo Go — not supported
 
   if (Platform.OS === 'android') {
     // Android needs a "channel" set up before we can show notifications
@@ -44,11 +57,24 @@ export async function ensureNotificationSetup(): Promise<boolean> {
     });
   }
 
-  const current = await N.getPermissionsAsync(); // Check what permissions we currently have
-  if (current.status === 'granted') return true;  // Already have permission — nothing to do
+  // Check current permission status
+  const current = await N.getPermissionsAsync();
 
-  const req = await N.requestPermissionsAsync(); // Ask the user to grant permission (shows the system dialog)
-  return req.status === 'granted'; // Return whether the user said yes
+  if (current.status === 'granted') return 'granted'; // Already have permission
+
+  // If the system says we can't ask again, the user denied permanently —
+  // the only option is to send them to the app's notification settings.
+  if (current.canAskAgain === false) {
+    return 'denied-permanently';
+  }
+
+  // Try requesting permission (shows the system dialog)
+  const req = await N.requestPermissionsAsync();
+
+  if (req.status === 'granted') return 'granted';
+
+  // User just denied — check if they can be asked again next time
+  return req.canAskAgain === false ? 'denied-permanently' : 'denied';
 }
 
 /**

@@ -1,17 +1,17 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView, Linking, Platform } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import { useSettingsStore, type Currency, type RefreshInterval } from '../store/settingsStore';
-import { showTestNow } from '../services/notifications';
+import { showTestNow, ensureNotificationSetup } from '../services/notifications';
 import { IS_EXPO_GO } from '../utils/env';
 import { theme } from '../theme/theme';
 import { Button, Card, Screen, SectionLabel, Divider } from '../components/ui';
 
 const intervals: { label: string; value: RefreshInterval }[] = [
-  { label: '15s', value: 15_000 },
   { label: '30s', value: 30_000 },
   { label: '60s', value: 60_000 },
+  { label: '2m', value: 120_000 },
 ];
 
 const currencies: Currency[] = ['USD', 'EUR'];
@@ -63,6 +63,7 @@ export default function SettingsScreen() {
 
   const isLoading = useSettingsStore((s) => s.isLoading);
   const error = useSettingsStore((s) => s.error);
+  const needsSettings = useSettingsStore((s) => s.needsSettings);
 
   const setCurrency = useSettingsStore((s) => s.setCurrency);
   const setRefreshInterval = useSettingsStore((s) => s.setRefreshInterval);
@@ -89,7 +90,19 @@ export default function SettingsScreen() {
           <Card style={styles.errorCard}>
             <Text style={styles.errorTitle}>⚠️ Something went wrong</Text>
             <Text style={styles.errorText}>{error}</Text>
-            <View style={{ marginTop: theme.space.md }}>
+            <View style={{ marginTop: theme.space.md, gap: theme.space.sm }}>
+              {needsSettings ? (
+                <Button
+                  title="Open Settings"
+                  onPress={() => {
+                    if (Platform.OS === 'android') {
+                      void Linking.openSettings();
+                    } else {
+                      void Linking.openURL('app-settings:');
+                    }
+                  }}
+                />
+              ) : null}
               <Button title="Dismiss" variant="ghost" onPress={clearError} />
             </View>
           </Card>
@@ -147,6 +160,30 @@ export default function SettingsScreen() {
             />
           </View>
           {isLoading ? <Text style={styles.applyingText}>Applying…</Text> : null}
+
+          <View style={styles.testBtnWrap}>
+            <Button
+              title="🔔 Send Test Notification"
+              variant="ghost"
+              onPress={async () => {
+                const result = await ensureNotificationSetup();
+                if (result !== 'granted') {
+                  useSettingsStore.getState().clearError();
+                  useSettingsStore.setState({
+                    error:
+                      result === 'denied-permanently'
+                        ? 'Notifications are blocked. Please enable them in your device settings.'
+                        : 'Notification permission denied',
+                    needsSettings: result === 'denied-permanently',
+                  });
+                  return;
+                }
+                await showTestNow();
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }}
+            />
+            <Text style={styles.testHint}>Sends a notification in ~1 second</Text>
+          </View>
         </Card>
 
         {/* Dev tools */}
@@ -266,6 +303,20 @@ const styles = StyleSheet.create({
     marginTop: theme.space.sm,
     color: theme.color.text3,
     fontSize: theme.font.xs,
+    fontWeight: '600',
+  },
+
+  testBtnWrap: {
+    marginTop: theme.space.md,
+    paddingTop: theme.space.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.color.border,
+    alignItems: 'center',
+    gap: 6,
+  },
+  testHint: {
+    color: theme.color.text3,
+    fontSize: 11,
     fontWeight: '600',
   },
 
