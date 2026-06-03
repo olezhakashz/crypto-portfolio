@@ -1,17 +1,28 @@
+// MarketFilters.tsx
+// Search bar and "Gainers Only" toggle displayed at the top of the Market screen.
+// Reads from and writes to the Zustand marketStore so filter state is shared
+// with the coin list below without prop-drilling.
+
 import { View, TextInput, StyleSheet } from 'react-native';
+// Zustand store that holds market data, filters, and their setters
 import { useMarketStore } from '../store/marketStore';
 import { theme } from '../theme/theme';
+// Segment is the two-option toggle from our shared UI library
 import { Segment } from './ui';
 
 export default function MarketFilters() {
-  const query = useMarketStore((s) => s.query);
-  const onlyGainers = useMarketStore((s) => s.onlyGainers);
+  // Subscribe to individual store slices — the component only re-renders
+  // when the specific value it selects changes, not on every store update.
+  const query = useMarketStore((s) => s.query);           // current search text
+  const onlyGainers = useMarketStore((s) => s.onlyGainers); // whether "Gainers" filter is active
 
+  // Store actions (setters) — these references are stable across renders
   const setQuery = useMarketStore((s) => s.setQuery);
   const setOnlyGainers = useMarketStore((s) => s.setOnlyGainers);
 
   return (
     <View style={styles.wrap}>
+      {/* Search input — filters the coin list by name or symbol */}
       <TextInput
         placeholder="Search coins…"
         placeholderTextColor={theme.color.text3}
@@ -21,6 +32,7 @@ export default function MarketFilters() {
         returnKeyType="search"
       />
 
+      {/* Two-way toggle: "Top 50" (all coins) vs "📈 Gainers" (positive 24h change only) */}
       <Segment
         left="Top 50"
         right="📈 Gainers"
